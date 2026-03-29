@@ -1,0 +1,544 @@
+/* ============================================================
+   STYLE.CSS — Rol Tracker
+   Estética: tinta oscura y pergamino — diario de escritora.
+   Mobile-first. Variables CSS para fácil personalización.
+   ============================================================ */
+
+/* ── FUENTES ──────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Crimson+Pro:wght@300;400;600&display=swap');
+
+/* ── VARIABLES ────────────────────────────────────────────── */
+:root {
+  /* Paleta: tinta y pergamino con acento cobre */
+  --bg:          #13111a;      /* fondo principal muy oscuro, casi negro violeta */
+  --bg-card:     #1e1a2e;      /* fondo tarjetas */
+  --bg-modal:    #252035;      /* fondo modal */
+  --border:      #352f50;      /* bordes sutiles */
+  --text:        #e8e0d0;      /* texto principal (pergamino claro) */
+  --text-dim:    #8a7fa0;      /* texto secundario */
+  --accent:      #c8945a;      /* cobre/ámbar — acento principal */
+  --accent-glow: #c8945a33;    /* glow del acento */
+  --mine:        #c87070;      /* rojo suave — le debo yo */
+  --mine-bg:     #c8707018;
+  --theirs:      #5a7a9a;      /* azul grisáceo — me deben */
+  --theirs-bg:   #5a7a9a10;
+  --overdue:     #e05555;      /* rojo urgente — límite superado */
+  --warning:     #d4a843;      /* ámbar — último día */
+  --success:     #6aab7a;      /* verde suave */
+
+  /* Tipografía */
+  --font-title:  'Playfair Display', Georgia, serif;
+  --font-body:   'Crimson Pro', Georgia, serif;
+
+  /* Espaciado */
+  --radius:      10px;
+  --radius-sm:   6px;
+  --gap:         16px;
+}
+
+/* ── RESET Y BASE ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.5;
+  /* Evita scroll horizontal en móvil */
+  overflow-x: hidden;
+}
+
+/* Fondo con textura muy sutil (ruido sintético via gradiente) */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 20% 10%, #2a1a3e44 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 90%, #1a2a3e33 0%, transparent 60%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Todo el contenido sobre el fondo decorativo */
+.app-shell { position: relative; z-index: 1; }
+
+/* ── LAYOUT PRINCIPAL ─────────────────────────────────────── */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;      /* dynamic viewport height — respeta barra del navegador */
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+/* ── HEADER ───────────────────────────────────────────────── */
+.main-header {
+  padding: 14px var(--gap) 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.header-inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Botón volver — oculto por defecto */
+#btn-back {
+  display: none;   /* JS lo muestra en vista detalle */
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 4px 0;
+}
+#btn-back::before { content: '←'; font-size: 1.2rem; }
+
+.app-title {
+  font-family: var(--font-title);
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  flex: 1;
+}
+.app-title span { color: var(--accent); font-style: italic; }
+
+/* Filtro de juego */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+#game-filter {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  padding: 4px 8px;
+  max-width: 140px;
+}
+
+/* ── CONTENIDO PRINCIPAL ──────────────────────────────────── */
+#main-content {
+  flex: 1;
+  padding: var(--gap);
+  padding-bottom: 80px; /* espacio para la nav inferior */
+  overflow-y: auto;
+}
+
+/* ── NAVEGACIÓN INFERIOR ──────────────────────────────────── */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 600px;
+  display: flex;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+  z-index: 10;
+}
+
+.nav-btn {
+  flex: 1;
+  padding: 12px 8px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  transition: color 0.2s;
+}
+
+.nav-btn .nav-icon { font-size: 1.3rem; line-height: 1; }
+.nav-btn.active    { color: var(--accent); }
+
+/* ── TÍTULOS DE VISTA ─────────────────────────────────────── */
+.view-title {
+  font-family: var(--font-title);
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-bottom: var(--gap);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.section-label {
+  font-family: var(--font-title);
+  font-size: 0.85rem;
+  font-style: italic;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 6px 0 4px;
+  margin: 12px 0 6px;
+  border-bottom: 1px solid var(--border);
+}
+.label-mine   { color: var(--mine);   border-color: var(--mine);   }
+.label-theirs { color: var(--theirs); border-color: var(--theirs); }
+.label-unknown { color: var(--text-dim); }
+
+/* ── BADGE ────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 11px;
+  font-size: 0.75rem;
+  font-family: var(--font-body);
+  font-weight: 600;
+  background: var(--bg-card);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+}
+.badge-alert {
+  background: var(--mine-bg);
+  color: var(--mine);
+  border-color: var(--mine);
+}
+
+/* ── LISTA DE PERSONAJES ──────────────────────────────────── */
+.char-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.char-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+.char-item:hover { border-color: var(--accent); background: #252035; }
+
+.char-info { display: flex; flex-direction: column; gap: 2px; }
+.char-name  { font-weight: 600; font-size: 1rem; }
+.char-game  { font-size: 0.8rem; color: var(--text-dim); }
+
+.char-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.char-actions { display: flex; gap: 4px; }
+
+/* ── BOTONES ──────────────────────────────────────────────── */
+.btn-primary {
+  background: var(--accent);
+  color: #13111a;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 8px 16px;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+.btn-primary:hover   { opacity: 0.85; }
+.btn-primary.btn-sm  { padding: 5px 12px; font-size: 0.85rem; }
+
+.btn-ghost {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: 8px 14px;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.btn-ghost:hover { border-color: var(--accent); }
+
+.btn-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s;
+  line-height: 1;
+}
+.btn-icon:hover { background: var(--border); }
+
+/* ── DETALLE DE PERSONAJE ─────────────────────────────────── */
+.char-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: var(--gap);
+  gap: 10px;
+}
+
+.char-detail-name {
+  font-family: var(--font-title);
+  font-size: 1.5rem;
+  font-style: italic;
+}
+
+/* ── LISTA DE HILOS ───────────────────────────────────────── */
+.thread-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+/* Hilos donde me deben: visualmente más apagados */
+.thread-list--dim .thread-row { opacity: 0.55; }
+.thread-list--dim .thread-row:hover { opacity: 0.85; }
+
+.thread-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  gap: 8px;
+  transition: border-color 0.2s;
+}
+
+/* Color de borde según turno */
+.label-mine   ~ .thread-list .thread-row  { border-left-color: var(--mine);   }
+.label-theirs ~ .thread-list .thread-row  { border-left-color: var(--theirs); }
+
+/* Urgencia */
+.urgency-warning { border-left-color: var(--warning) !important; }
+.urgency-overdue { border-left-color: var(--overdue) !important; background: #e0555510 !important; }
+
+.tr-left    { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.tr-partner { font-weight: 600; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tr-meta    { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tr-actions { display: flex; gap: 2px; flex-shrink: 0; }
+
+/* Etiquetas pequeñas de días */
+.days-badge {
+  font-size: 0.75rem;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: var(--mine-bg);
+  color: var(--mine);
+  border: 1px solid var(--mine);
+  font-weight: 600;
+}
+.days-badge.urgency-warning {
+  background: #d4a84318;
+  color: var(--warning);
+  border-color: var(--warning);
+}
+.days-badge.urgency-overdue {
+  background: #e0555520;
+  color: var(--overdue);
+  border-color: var(--overdue);
+}
+
+.days-response {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  padding: 2px 6px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+.max-days {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+/* ── DASHBOARD ────────────────────────────────────────────── */
+.thread-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--mine);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  cursor: pointer;
+  gap: 10px;
+  transition: border-color 0.2s, background 0.2s;
+}
+.thread-card:hover { background: #252035; }
+.thread-card.urgency-warning { border-left-color: var(--warning); }
+.thread-card.urgency-overdue { border-left-color: var(--overdue); background: #e0555510; }
+
+.tc-left   { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.tc-char   { font-weight: 700; font-size: 1rem; }
+.tc-game   { font-size: 0.75rem; color: var(--text-dim); }
+.tc-partner{ font-size: 0.85rem; color: var(--text-dim); }
+.tc-right  { flex-shrink: 0; text-align: right; }
+.tc-days   { font-size: 0.8rem; font-weight: 600; color: var(--mine); }
+
+.urgency-overdue .tc-days { color: var(--overdue); }
+.urgency-warning .tc-days { color: var(--warning); }
+
+/* ── ESTADO VACÍO ─────────────────────────────────────────── */
+.empty-state {
+  text-align: center;
+  color: var(--text-dim);
+  font-style: italic;
+  padding: 32px 16px;
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+/* ── MODAL ────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: #00000088;
+  z-index: 100;
+  display: flex;
+  align-items: flex-end;  /* sube desde abajo en móvil */
+  justify-content: center;
+  padding: 0;
+  animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.modal {
+  background: var(--bg-modal);
+  border: 1px solid var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
+  padding: 24px var(--gap) var(--gap);
+  width: 100%;
+  max-width: 600px;
+  animation: slideUp 0.2s ease;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(40px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.modal-title {
+  font-family: var(--font-title);
+  font-size: 1.15rem;
+  margin-bottom: 16px;
+  font-style: italic;
+}
+
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal-body label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.modal-body input[type="text"],
+.modal-body input[type="number"],
+.modal-body input[type="date"] {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  padding: 9px 12px;
+  width: 100%;
+  transition: border-color 0.15s;
+}
+.modal-body input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+/* Color del selector de fecha en Android */
+.modal-body input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
+}
+
+.date-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.date-row input { flex: 1; }
+.btn-today { padding: 6px 10px; font-size: 0.8rem; white-space: nowrap; }
+
+.modal-hint {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  line-height: 1.6;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  margin-top: 4px;
+}
+
+.modal-confirm-msg {
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.modal-footer {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+  justify-content: flex-end;
+}
+
+/* Botón borrar en modal de confirmación: color rojo */
+.modal-footer .btn-primary:last-child { background: var(--overdue); }
+
+/* ── SCROLLBAR PERSONALIZADA (escritorio) ─────────────────── */
+::-webkit-scrollbar       { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+/* ── RESPONSIVE: escritorio ───────────────────────────────── */
+@media (min-width: 600px) {
+  .modal-overlay { align-items: center; padding: var(--gap); }
+  .modal { border-radius: var(--radius); }
+}

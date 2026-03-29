@@ -1,0 +1,518 @@
+/* ============================================================
+   UI.JS — Renderizado de vistas
+   Tres vistas principales:
+     1. Dashboard  — hilos urgentes de todos los personajes
+     2. Characters — lista de personajes con filtro por juego
+     3. Character  — detalle de un personaje con sus hilos
+   ============================================================ */
+
+const UI = {
+
+  /* ── ESTADO DE LA UI ──────────────────────────────────── */
+  currentView:      'dashboard', // 'dashboard' | 'characters' | 'character'
+  currentCharId:    null,        // ID del personaje activo en vista detalle
+  currentGameFilter: 'all',      // filtro de juego activo
+
+  /* ── ENTRADA PRINCIPAL ────────────────────────────────── */
+
+  /** Renderiza la vista activa. Llamado tras cualquier cambio de datos. */
+  render() {
+    this._updateNav();
+    this._updateGameFilter();
+
+    if (this.currentView === 'dashboard') {
+      this._renderDashboard();
+    } else if (this.currentView === 'characters') {
+      this._renderCharacters();
+    } else if (this.currentView === 'character') {
+      this._renderCharacterDetail(this.currentCharId);
+    }
+  },
+
+  /* ── NAV ──────────────────────────────────────────────── */
+
+  _updateNav() {
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.view === this.currentView);
+    });
+    // El botón "volver" solo aparece en vista de detalle
+    const backBtn = document.getElementById('btn-back');
+    if (backBtn) backBtn.style.display = this.currentView === 'character' ? 'flex' : 'none';
+  },
+
+  /* ── FILTRO DE JUEGO ──────────────────────────────────── */
+
+  _updateGameFilter() {
+    const sel = document.getElementById('game-filter');
+    if (!sel) return;
+    const games = DB.getGames();
+    // Reconstruir opciones preservando la selección actual
+    sel.innerHTML = '<option value="all">Todos los juegos</option>';
+    games.forEach(g => {
+      const opt = document.createElement('option');
+      opt.value = g;
+      opt.textContent = g;
+      if (g === this.currentGameFilter) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  },
+
+  /* ══════════════════════════════════════════════════════
+     VISTA 1: DASHBOARD
+     Muestra los hilos urgentes (≥4 días sin contestar)
+     de todos los personajes, ordenados de más a menos urgente.
+  ══════════════════════════════════════════════════════ */
+
+  _renderDashboard() {
+    const main = document.getElementById('main-content');
+
+    // Recoger todos los hilos donde le debo y llevo ≥4 días
+    let threads = DB.getThreads().filter(t => t.active);
+    const chars = DB.getCharacters();
+
+    // Aplicar filtro de juego
+    const filteredCharIds = this.currentGameFilter === 'all'
+      ? chars.map(c => c.id)
+      : chars.filter(c => c.game === this.currentGameFilter).map(c => c.id);
+
+    threads = threads.filter(t => filteredCharIds.includes(t.characterId));
+
+    // Solo los que le debo yo y llevan ≥4 días
+    const urgent = threads
+      .filter(t => DB.getTurn(t) === 'mine' && DB.daysOwed(t) >= 4)
+      .map(t => ({ ...t, _daysOwed: DB.daysOwed(t) }))
+      .sort((a, b) => b._daysOwed - a._daysOwed); // más días = más arriba
+
+    // HTML de la vista
+    main.innerHTML = `
+      <section class="dashboard">
+        <h2 class="view-title">Pendientes urgentes
+          <span class="badge ${urgent.length > 0 ? 'badge-alert' : ''}">${urgent.length}</span>
+        </h2>
+        ${urgent.length === 0
+          ? `<p class="empty-state">✨ Todo al día. No hay hilos con 4+ días de espera.</p>`
+          : `<ul class="thread-list">
+              ${urgent.map(t => this._threadCardDashboard(t, chars)).join('')}
+             </ul>`
+        }
+      </section>
+    `;
+
+    // Eventos: clic en tarjeta → va al personaje
+    main.querySelectorAll('[data-char-id]').forEach(el => {
+      el.addEventListener('click', () => {
+        this.currentCharId = el.dataset.charId;
+        this.currentView   = 'character';
+        this.render();
+      });
+    });
+  },
+
+  /** Tarjeta de hilo urgente en el dashboard */
+  _threadCardDashboard(thread, chars) {
+    const char     = chars.find(c => c.id === thread.characterId);
+    const charName = char ? char.name : '?';
+    const game     = char ? char.game : '';
+    const days     = thread._daysOwed;
+    const urgency  = days >= thread.maxDays ? 'overdue' : 'warning';
+    const label    = days >= thread.maxDays
+      ? `¡${days}d — límite superado!`
+      : `${days}d — queda ${thread.maxDays - days}d`;
+
+    return `
+      <li class="thread-card urgency-${urgency}" data-char-id="${thread.characterId}">
+        <div class="tc-left">
+          <span class="tc-char">${charName}</span>
+          <span class="tc-game">${game}</span>
+          <span class="tc-partner">↩ ${thread.partnerName}</span>
+        </div>
+        <div class="tc-right">
+          <span class="tc-days">${label}</span>
+        </div>
+      </li>
+    `;
+  },
+
+  /* ══════════════════════════════════════════════════════
+     VISTA 2: LISTA DE PERSONAJES
+  ══════════════════════════════════════════════════════ */
+
+  _renderCharacters() {
+    const main  = document.getElementById('main-content');
+    let   chars = DB.getCharacters();
+
+    // Aplicar filtro de juego
+    if (this.currentGameFilter !== 'all') {
+      chars = chars.filter(c => c.game === this.currentGameFilter);
+    }
+
+    main.innerHTML = `
+      <section class="characters-view">
+        <h2 class="view-title">Mis personajes</h2>
+        ${chars.length === 0
+          ? `<p class="empty-state">Aún no tienes personajes. Pulsa <strong>+ Personaje</strong> para empezar.</p>`
+          : `<ul class="char-list">
+              ${chars.map(c => this._charCard(c)).join('')}
+             </ul>`
+        }
+      </section>
+    `;
+
+    // Clic en personaje → vista detalle
+    main.querySelectorAll('.char-item').forEach(el => {
+      el.addEventListener('click', e => {
+        // Evitar que el clic en los botones de editar/borrar abra el detalle
+        if (e.target.closest('.char-actions')) return;
+        this.currentCharId = el.dataset.id;
+        this.currentView   = 'character';
+        this.render();
+      });
+    });
+
+    // Botones editar personaje
+    main.querySelectorAll('.btn-edit-char').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        this._showEditCharModal(btn.dataset.id);
+      });
+    });
+
+    // Botones borrar personaje
+    main.querySelectorAll('.btn-del-char').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        this._confirmDelete(
+          '¿Borrar este personaje y todos sus hilos?',
+          () => { DB.deleteCharacter(btn.dataset.id); this.render(); }
+        );
+      });
+    });
+  },
+
+  /** Tarjeta de personaje en la lista */
+  _charCard(char) {
+    const threads  = DB.getThreadsByCharacter(char.id);
+    const pending  = threads.filter(t => t.active && DB.getTurn(t) === 'mine').length;
+    return `
+      <li class="char-item" data-id="${char.id}">
+        <div class="char-info">
+          <span class="char-name">${char.name}</span>
+          <span class="char-game">${char.game || '—'}</span>
+        </div>
+        <div class="char-meta">
+          ${pending > 0 ? `<span class="badge badge-alert">${pending} pendiente${pending > 1 ? 's' : ''}</span>` : ''}
+          <div class="char-actions">
+            <button class="btn-icon btn-edit-char" data-id="${char.id}" title="Editar">✏️</button>
+            <button class="btn-icon btn-del-char"  data-id="${char.id}" title="Borrar">🗑️</button>
+          </div>
+        </div>
+      </li>
+    `;
+  },
+
+  /* ══════════════════════════════════════════════════════
+     VISTA 3: DETALLE DE PERSONAJE
+     Lista de hilos dividida en:
+       A) Le debo yo — ordenados por días desde su último mensaje (más días arriba)
+       B) Me deben a mí — más tenues visualmente
+  ══════════════════════════════════════════════════════ */
+
+  _renderCharacterDetail(charId) {
+    const main   = document.getElementById('main-content');
+    const char   = DB.getCharacters().find(c => c.id === charId);
+    if (!char) { this.currentView = 'characters'; this.render(); return; }
+
+    const threads = DB.getThreadsByCharacter(charId).filter(t => t.active);
+
+    // Separar por turno
+    const mine   = threads
+      .filter(t => DB.getTurn(t) === 'mine')
+      .map(t => ({ ...t, _days: DB.daysOwed(t) ?? 0 }))
+      .sort((a, b) => b._days - a._days); // más días sin contestar = más arriba
+
+    const theirs  = threads.filter(t => DB.getTurn(t) === 'theirs');
+    const unknown = threads.filter(t => DB.getTurn(t) === 'unknown');
+
+    main.innerHTML = `
+      <section class="char-detail">
+        <div class="char-detail-header">
+          <div>
+            <h2 class="char-detail-name">${char.name}</h2>
+            <span class="char-game">${char.game || '—'}</span>
+          </div>
+          <button class="btn-primary btn-sm" id="btn-add-thread">+ Hilo</button>
+        </div>
+
+        <!-- SECCIÓN: Le debo yo -->
+        ${mine.length > 0 ? `
+          <h3 class="section-label label-mine">Le debo yo</h3>
+          <ul class="thread-list">
+            ${mine.map(t => this._threadRow(t, 'mine')).join('')}
+          </ul>
+        ` : ''}
+
+        <!-- SECCIÓN: Sin turno definido aún -->
+        ${unknown.length > 0 ? `
+          <h3 class="section-label label-unknown">Sin mensajes aún</h3>
+          <ul class="thread-list">
+            ${unknown.map(t => this._threadRow(t, 'unknown')).join('')}
+          </ul>
+        ` : ''}
+
+        <!-- SECCIÓN: Me deben a mí -->
+        ${theirs.length > 0 ? `
+          <h3 class="section-label label-theirs">Me deben a mí</h3>
+          <ul class="thread-list thread-list--dim">
+            ${theirs.map(t => this._threadRow(t, 'theirs')).join('')}
+          </ul>
+        ` : ''}
+
+        ${threads.length === 0
+          ? `<p class="empty-state">No hay hilos. Pulsa <strong>+ Hilo</strong> para añadir.</p>`
+          : ''}
+      </section>
+    `;
+
+    // Botón añadir hilo
+    document.getElementById('btn-add-thread').addEventListener('click', () => {
+      this._showAddThreadModal(charId);
+    });
+
+    // Botones de los hilos
+    main.querySelectorAll('.btn-thread-dates').forEach(btn => {
+      btn.addEventListener('click', () => this._showDatesModal(btn.dataset.id));
+    });
+    main.querySelectorAll('.btn-thread-edit').forEach(btn => {
+      btn.addEventListener('click', () => this._showEditThreadModal(btn.dataset.id));
+    });
+    main.querySelectorAll('.btn-thread-del').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this._confirmDelete('¿Borrar este hilo?', () => {
+          DB.deleteThread(btn.dataset.id);
+          this.render();
+        });
+      });
+    });
+  },
+
+  /** Fila de hilo en el detalle de personaje */
+  _threadRow(thread, turn) {
+    const daysOwed   = turn === 'mine' ? thread._days : null;
+    const theirDays  = thread.theirResponseDays; // cuánto tardaron en responder
+
+    // Estado de urgencia para colorear
+    let urgencyClass = '';
+    if (turn === 'mine') {
+      if (daysOwed >= thread.maxDays)           urgencyClass = 'urgency-overdue';
+      else if (thread.maxDays - daysOwed <= 1)  urgencyClass = 'urgency-warning';
+    }
+
+    // Días desde su último mensaje (para "le debo yo")
+    const daysOwedLabel = turn === 'mine'
+      ? `<span class="days-badge ${urgencyClass}">${daysOwed}d sin contestar</span>`
+      : '';
+
+    // Días que tardó en responder (siempre visible si existe)
+    const theirResponseLabel = theirDays !== null && theirDays !== undefined
+      ? `<span class="days-response" title="Tardó ${theirDays} días en responderme">↩ ${theirDays}d</span>`
+      : '';
+
+    // Límite máximo (solo cuando es mi turno)
+    const maxLabel = turn === 'mine'
+      ? `<span class="max-days" title="Límite: ${thread.maxDays} días">⏱ ${thread.maxDays}d</span>`
+      : '';
+
+    return `
+      <li class="thread-row ${turn === 'theirs' ? 'thread-row--dim' : ''} ${urgencyClass}">
+        <div class="tr-left">
+          <span class="tr-partner">${thread.partnerName}</span>
+          <div class="tr-meta">
+            ${daysOwedLabel}
+            ${theirResponseLabel}
+            ${maxLabel}
+          </div>
+        </div>
+        <div class="tr-actions">
+          <button class="btn-icon btn-thread-dates" data-id="${thread.id}" title="Actualizar fechas">📅</button>
+          <button class="btn-icon btn-thread-edit"  data-id="${thread.id}" title="Editar">✏️</button>
+          <button class="btn-icon btn-thread-del"   data-id="${thread.id}" title="Borrar">🗑️</button>
+        </div>
+      </li>
+    `;
+  },
+
+  /* ══════════════════════════════════════════════════════
+     MODALES
+  ══════════════════════════════════════════════════════ */
+
+  /** Muestra un modal genérico. Retorna el elemento overlay. */
+  _showModal(title, bodyHTML, onConfirm, confirmLabel = 'Guardar') {
+    // Eliminar modal previo si existe
+    document.getElementById('modal-overlay')?.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'modal-overlay';
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal">
+        <h3 class="modal-title">${title}</h3>
+        <div class="modal-body">${bodyHTML}</div>
+        <div class="modal-footer">
+          <button class="btn-ghost" id="modal-cancel">Cancelar</button>
+          <button class="btn-primary" id="modal-confirm">${confirmLabel}</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    // Cerrar al pulsar fuera
+    overlay.addEventListener('click', e => {
+      if (e.target === overlay) overlay.remove();
+    });
+    document.getElementById('modal-cancel').addEventListener('click', () => overlay.remove());
+    document.getElementById('modal-confirm').addEventListener('click', () => {
+      onConfirm(overlay);
+    });
+
+    return overlay;
+  },
+
+  /** Modal: añadir personaje */
+  showAddCharModal() {
+    this._showModal(
+      'Nuevo personaje',
+      `<label>Nombre<input id="m-char-name" type="text" placeholder="Ej: Lucía Vega" /></label>
+       <label>Juego / Fandom<input id="m-char-game" type="text" placeholder="Ej: Dragon Age" /></label>`,
+      overlay => {
+        const name = document.getElementById('m-char-name').value.trim();
+        const game = document.getElementById('m-char-game').value.trim();
+        if (!name) { alert('El nombre es obligatorio.'); return; }
+        DB.addCharacter(name, game);
+        overlay.remove();
+        this.render();
+      }
+    );
+    // Focus automático
+    setTimeout(() => document.getElementById('m-char-name')?.focus(), 50);
+  },
+
+  /** Modal: editar personaje */
+  _showEditCharModal(charId) {
+    const char = DB.getCharacters().find(c => c.id === charId);
+    if (!char) return;
+    this._showModal(
+      'Editar personaje',
+      `<label>Nombre<input id="m-char-name" type="text" value="${char.name}" /></label>
+       <label>Juego / Fandom<input id="m-char-game" type="text" value="${char.game}" /></label>`,
+      overlay => {
+        const name = document.getElementById('m-char-name').value.trim();
+        const game = document.getElementById('m-char-game').value.trim();
+        if (!name) { alert('El nombre es obligatorio.'); return; }
+        DB.editCharacter(charId, name, game);
+        overlay.remove();
+        this.render();
+      }
+    );
+  },
+
+  /** Modal: añadir hilo */
+  _showAddThreadModal(charId) {
+    this._showModal(
+      'Nuevo hilo',
+      `<label>Nombre del partner<input id="m-th-partner" type="text" placeholder="Ej: Mireia (Rosamund)" /></label>
+       <label>Días máximos para contestar
+         <input id="m-th-maxdays" type="number" min="1" max="30" value="3" />
+       </label>`,
+      overlay => {
+        const partner = document.getElementById('m-th-partner').value.trim();
+        const maxDays = document.getElementById('m-th-maxdays').value;
+        if (!partner) { alert('El nombre del partner es obligatorio.'); return; }
+        DB.addThread(charId, partner, maxDays);
+        overlay.remove();
+        this.render();
+      }
+    );
+    setTimeout(() => document.getElementById('m-th-partner')?.focus(), 50);
+  },
+
+  /** Modal: editar hilo */
+  _showEditThreadModal(threadId) {
+    const thread = DB.getThreads().find(t => t.id === threadId);
+    if (!thread) return;
+    this._showModal(
+      'Editar hilo',
+      `<label>Nombre del partner<input id="m-th-partner" type="text" value="${thread.partnerName}" /></label>
+       <label>Días máximos para contestar
+         <input id="m-th-maxdays" type="number" min="1" max="30" value="${thread.maxDays}" />
+       </label>`,
+      overlay => {
+        const partner = document.getElementById('m-th-partner').value.trim();
+        const maxDays = document.getElementById('m-th-maxdays').value;
+        if (!partner) { alert('El nombre del partner es obligatorio.'); return; }
+        DB.editThread(threadId, partner, maxDays);
+        overlay.remove();
+        this.render();
+      }
+    );
+  },
+
+  /**
+   * Modal: actualizar fechas de un hilo.
+   * Dos campos de fecha: mi último mensaje y su último mensaje.
+   * Botón rápido "Hoy" para cada campo.
+   */
+  _showDatesModal(threadId) {
+    const thread = DB.getThreads().find(t => t.id === threadId);
+    if (!thread) return;
+    const today = DB.today();
+
+    this._showModal(
+      `Fechas — ${thread.partnerName}`,
+      `
+      <label>Mi último mensaje
+        <div class="date-row">
+          <input id="m-my-date"    type="date" value="${thread.myLastMessage || ''}" max="${today}" />
+          <button class="btn-ghost btn-today" data-target="m-my-date">Hoy</button>
+        </div>
+      </label>
+      <label>Su último mensaje
+        <div class="date-row">
+          <input id="m-their-date" type="date" value="${thread.theirLastMessage || ''}" max="${today}" />
+          <button class="btn-ghost btn-today" data-target="m-their-date">Hoy</button>
+        </div>
+      </label>
+      <p class="modal-hint">
+        💡 "Mi último mensaje" es cuando yo respondí por última vez.<br>
+        "Su último mensaje" es cuando el partner respondió por última vez.
+      </p>
+      `,
+      overlay => {
+        const myDate    = document.getElementById('m-my-date').value    || null;
+        const theirDate = document.getElementById('m-their-date').value || null;
+        DB.updateThreadDates(threadId, myDate, theirDate);
+        overlay.remove();
+        this.render();
+      }
+    );
+
+    // Botones "Hoy" para rellenar la fecha automáticamente
+    setTimeout(() => {
+      document.querySelectorAll('.btn-today').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.getElementById(btn.dataset.target).value = today;
+        });
+      });
+    }, 50);
+  },
+
+  /** Confirmación simple de borrado */
+  _confirmDelete(message, onConfirm) {
+    this._showModal(
+      'Confirmar borrado',
+      `<p class="modal-confirm-msg">${message}</p>`,
+      overlay => { onConfirm(); overlay.remove(); },
+      'Borrar'
+    );
+  }
+
+};

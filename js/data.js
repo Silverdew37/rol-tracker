@@ -162,33 +162,47 @@ const DB = {
     const threads = this.getThreads().map(t => {
       if (t.id !== id) return t;
 
+      const newMy    = myLastMessage    || t.myLastMessage;
+      const newTheir = theirLastMessage || t.theirLastMessage;
+
       let { theirResponseDays, myResponseDays } = t;
 
-      // Nuevo mensaje del partner → calculamos cuánto tardó en responderme
-      // (desde mi último mensaje previo hasta el suyo nuevo)
-      if (theirLastMessage && t.myLastMessage && theirLastMessage !== t.theirLastMessage) {
+      // Días que tardó el partner en responderme:
+      // = theirLastMessage - myLastMessage (anterior al suyo)
+      // Se recalcula si hay nueva fecha del partner O si el campo aún es null
+      if (newTheir && newMy) {
         const diff = Math.round(
-          (new Date(theirLastMessage) - new Date(t.myLastMessage)) / 86400000
+          (new Date(newTheir) - new Date(newMy)) / 86400000
         );
-        if (diff >= 0) theirResponseDays = diff;
+        // Solo tiene sentido si su mensaje es posterior al mío
+        if (diff > 0 || (diff === 0 && lastTurn === 'theirs')) {
+          // El partner respondió después que yo → tiene sentido como "tiempo de respuesta suyo"
+          if (theirResponseDays === null || theirLastMessage !== t.theirLastMessage) {
+            theirResponseDays = Math.max(0, diff);
+          }
+        }
       }
 
-      // Nuevo mensaje mío → calculamos cuánto tardé en responder al partner
-      // (desde el último mensaje del partner hasta mi nuevo mensaje)
-      if (myLastMessage && t.theirLastMessage && myLastMessage !== t.myLastMessage) {
+      // Días que tardé yo en responder al partner:
+      // = myLastMessage - theirLastMessage (anterior al mío)
+      if (newMy && newTheir) {
         const diff = Math.round(
-          (new Date(myLastMessage) - new Date(t.theirLastMessage)) / 86400000
+          (new Date(newMy) - new Date(newTheir)) / 86400000
         );
-        if (diff >= 0) myResponseDays = diff;
+        if (diff > 0 || (diff === 0 && lastTurn === 'mine')) {
+          if (myResponseDays === null || myLastMessage !== t.myLastMessage) {
+            myResponseDays = Math.max(0, diff);
+          }
+        }
       }
 
       return {
         ...t,
-        myLastMessage:     myLastMessage    || t.myLastMessage,
-        theirLastMessage:  theirLastMessage || t.theirLastMessage,
+        myLastMessage:     newMy,
+        theirLastMessage:  newTheir,
         theirResponseDays,
         myResponseDays,
-        lastTurn:          lastTurn !== undefined ? lastTurn : t.lastTurn
+        lastTurn: lastTurn !== undefined ? lastTurn : t.lastTurn
       };
     });
     this._save(this.KEYS.THREADS, threads);

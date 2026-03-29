@@ -55,7 +55,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     UI.render();
   });
 
-  /* ── 5. RENDER INICIAL ──────────────────────────────────── */
+  /* ── 5. MIGRACIÓN: calcular días de respuesta en hilos existentes ── */
+  // Si hay hilos con ambas fechas pero sin días calculados, los calcula ahora.
+  // Solo se ejecuta una vez (guarda flag en localStorage).
+  if (!localStorage.getItem('rt_migrated_v1')) {
+    const threads = DB.getThreads().map(t => {
+      let { theirResponseDays, myResponseDays } = t;
+      const { myLastMessage, theirLastMessage, lastTurn } = t;
+      if (myLastMessage && theirLastMessage) {
+        const diff = Math.round(
+          (new Date(theirLastMessage) - new Date(myLastMessage)) / 86400000
+        );
+        // Su respuesta: si su fecha es posterior a la mía (o igual y ellos deben)
+        if (theirResponseDays === null && diff > 0) theirResponseDays = diff;
+        // Mi respuesta: si mi fecha es posterior a la suya (o igual y yo debo)
+        if (myResponseDays === null && diff < 0) myResponseDays = Math.abs(diff);
+        // Fechas iguales: usar lastTurn para asignar al que respondió
+        if (diff === 0 && lastTurn === 'theirs' && theirResponseDays === null) theirResponseDays = 0;
+        if (diff === 0 && lastTurn === 'mine'   && myResponseDays   === null) myResponseDays = 0;
+      }
+      return { ...t, theirResponseDays, myResponseDays };
+    });
+    DB._save(DB.KEYS.THREADS, threads);
+    localStorage.setItem('rt_migrated_v1', '1');
+  }
+
+  /* ── 6. RENDER INICIAL ──────────────────────────────────── */
   UI.render();
 
 });

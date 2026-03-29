@@ -59,14 +59,14 @@ const UI = {
 
   /* ══════════════════════════════════════════════════════
      VISTA 1: DASHBOARD
-     Muestra los hilos urgentes (≥4 días sin contestar)
+     Muestra los hilos urgentes (≥3 días sin contestar)
      de todos los personajes, ordenados de más a menos urgente.
   ══════════════════════════════════════════════════════ */
 
   _renderDashboard() {
     const main = document.getElementById('main-content');
 
-    // Recoger todos los hilos donde le debo y llevo ≥4 días
+    // Recoger todos los hilos donde le debo y llevo ≥3 días
     let threads = DB.getThreads().filter(t => t.active);
     const chars = DB.getCharacters();
 
@@ -77,9 +77,9 @@ const UI = {
 
     threads = threads.filter(t => filteredCharIds.includes(t.characterId));
 
-    // Solo los que le debo yo y llevan ≥4 días
+    // Solo los que le debo yo y llevan ≥3 días
     const urgent = threads
-      .filter(t => DB.getTurn(t) === 'mine' && DB.daysOwed(t) >= 4)
+      .filter(t => DB.getTurn(t) === 'mine' && DB.daysOwed(t) >= 3)
       .map(t => ({ ...t, _daysOwed: DB.daysOwed(t) }))
       .sort((a, b) => b._daysOwed - a._daysOwed); // más días = más arriba
 
@@ -90,7 +90,7 @@ const UI = {
           <span class="badge ${urgent.length > 0 ? 'badge-alert' : ''}">${urgent.length}</span>
         </h2>
         ${urgent.length === 0
-          ? `<p class="empty-state">✨ Todo al día. No hay hilos con 4+ días de espera.</p>`
+          ? `<p class="empty-state">✨ Todo al día. No hay hilos con 3+ días de espera.</p>`
           : `<ul class="thread-list">
               ${urgent.map(t => this._threadCardDashboard(t, chars)).join('')}
              </ul>`

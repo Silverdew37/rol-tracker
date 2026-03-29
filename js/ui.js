@@ -655,7 +655,7 @@ const UI = {
     // también se muestra dinámicamente al cambiar las fechas (ver JS abajo)
     const turnSelectorHTML = `
       <div class="turn-selector" id="turn-selector" style="display:${datesMatch ? 'flex' : 'none'}">
-        <span class="turn-label">¿Quién escribió último?</span>
+        <span class="turn-label">¿Quién debe rol?</span>
         <div class="turn-options">
           <label class="turn-option">
             <input type="radio" name="last-turn" value="theirs"

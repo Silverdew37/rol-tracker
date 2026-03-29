@@ -59,14 +59,14 @@ const UI = {
 
   /* ══════════════════════════════════════════════════════
      VISTA 1: DASHBOARD
-     Muestra los hilos urgentes (≥3 días sin contestar)
+     Muestra los hilos urgentes (≥4 días sin contestar)
      de todos los personajes, ordenados de más a menos urgente.
   ══════════════════════════════════════════════════════ */
 
   _renderDashboard() {
     const main = document.getElementById('main-content');
 
-    // Recoger todos los hilos donde le debo y llevo ≥3 días
+    // Recoger todos los hilos donde le debo y llevo ≥4 días
     let threads = DB.getThreads().filter(t => t.active);
     const chars = DB.getCharacters();
 
@@ -77,9 +77,9 @@ const UI = {
 
     threads = threads.filter(t => filteredCharIds.includes(t.characterId));
 
-    // Solo los que le debo yo y llevan ≥3 días
+    // Solo los que le debo yo y llevan ≥4 días
     const urgent = threads
-      .filter(t => DB.getTurn(t) === 'mine' && DB.daysOwed(t) >= 3)
+      .filter(t => DB.getTurn(t) === 'mine' && DB.daysOwed(t) >= 4)
       .map(t => ({ ...t, _daysOwed: DB.daysOwed(t) }))
       .sort((a, b) => b._daysOwed - a._daysOwed); // más días = más arriba
 
@@ -90,7 +90,7 @@ const UI = {
           <span class="badge ${urgent.length > 0 ? 'badge-alert' : ''}">${urgent.length}</span>
         </h2>
         ${urgent.length === 0
-          ? `<p class="empty-state">✨ Todo al día. No hay hilos con 3+ días de espera.</p>`
+          ? `<p class="empty-state">✨ Todo al día. No hay hilos con 4+ días de espera.</p>`
           : `<ul class="thread-list">
               ${urgent.map(t => this._threadCardDashboard(t, chars)).join('')}
              </ul>`
@@ -602,13 +602,16 @@ const UI = {
 
   /**
    * Modal: actualizar fechas de un hilo.
-   * Dos campos de fecha: mi último mensaje y su último mensaje.
-   * Botón rápido "Hoy" para cada campo.
+   * Incluye selector explícito de quién escribió último,
+   * imprescindible cuando ambas fechas coinciden.
    */
   _showDatesModal(threadId) {
     const thread = DB.getThreads().find(t => t.id === threadId);
     if (!thread) return;
     const today = DB.today();
+
+    // Turno actual guardado (para preseleccionar el radio)
+    const savedTurn = thread.lastTurn || DB.getTurn(thread);
 
     this._showModal(
       `Fechas — ${thread.partnerName}`,
@@ -625,21 +628,39 @@ const UI = {
           <button class="btn-ghost btn-today" data-target="m-their-date">Hoy</button>
         </div>
       </label>
+
+      <!-- Selector de turno: quién escribió el último mensaje -->
+      <div class="turn-selector">
+        <span class="turn-label">¿Quién escribió último?</span>
+        <div class="turn-options">
+          <label class="turn-option">
+            <input type="radio" name="last-turn" value="theirs"
+              ${savedTurn === 'mine' || savedTurn === 'unknown' ? 'checked' : ''} />
+            <span>${thread.partnerName}</span>
+          </label>
+          <label class="turn-option">
+            <input type="radio" name="last-turn" value="mine"
+              ${savedTurn === 'theirs' ? 'checked' : ''} />
+            <span>Yo</span>
+          </label>
+        </div>
+      </div>
+
       <p class="modal-hint">
-        💡 "Mi último mensaje" es cuando yo respondí por última vez.<br>
-        "Su último mensaje" es cuando el partner respondió por última vez.
+        💡 El selector de turno es necesario cuando ambas fechas son el mismo día.
       </p>
       `,
       overlay => {
         const myDate    = document.getElementById('m-my-date').value    || null;
         const theirDate = document.getElementById('m-their-date').value || null;
-        DB.updateThreadDates(threadId, myDate, theirDate);
+        const lastTurn  = document.querySelector('input[name="last-turn"]:checked')?.value || null;
+        DB.updateThreadDates(threadId, myDate, theirDate, lastTurn);
         overlay.remove();
         this.render();
       }
     );
 
-    // Botones "Hoy" para rellenar la fecha automáticamente
+    // Botones "Hoy"
     setTimeout(() => {
       document.querySelectorAll('.btn-today').forEach(btn => {
         btn.addEventListener('click', () => {

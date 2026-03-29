@@ -150,10 +150,12 @@ const DB = {
 
   /**
    * Actualiza las fechas de un hilo.
+   * Recibe también lastTurn ('mine'|'theirs') para saber explícitamente
+   * quién escribió el último mensaje (necesario cuando las fechas coinciden).
    * Calcula automáticamente theirResponseDays cuando se registra
    * un nuevo mensaje del partner (theirLastMessage).
    */
-  updateThreadDates(id, myLastMessage, theirLastMessage) {
+  updateThreadDates(id, myLastMessage, theirLastMessage, lastTurn) {
     const threads = this.getThreads().map(t => {
       if (t.id !== id) return t;
 
@@ -176,7 +178,8 @@ const DB = {
         ...t,
         myLastMessage:    myLastMessage    || t.myLastMessage,
         theirLastMessage: theirLastMessage || t.theirLastMessage,
-        theirResponseDays
+        theirResponseDays,
+        lastTurn:         lastTurn         || t.lastTurn || null
       };
     });
     this._save(this.KEYS.THREADS, threads);
@@ -223,17 +226,24 @@ const DB = {
 
   /**
    * Para cada hilo, determina el turno actual.
+   * Usa el campo lastTurn cuando las fechas coinciden o para desambiguar.
    * @returns {'mine'|'theirs'|'unknown'}
    *   mine   → le debo yo respuesta
    *   theirs → me deben a mí
    *   unknown → no hay fechas todavía
    */
   getTurn(thread) {
-    const { myLastMessage, theirLastMessage } = thread;
+    const { myLastMessage, theirLastMessage, lastTurn } = thread;
     if (!myLastMessage && !theirLastMessage) return 'unknown';
-    if (!myLastMessage) return 'mine';    // ellos escribieron, yo no he respondido aún
-    if (!theirLastMessage) return 'theirs'; // yo escribí, ellos no han respondido
-    return theirLastMessage > myLastMessage ? 'mine' : 'theirs';
+    if (!myLastMessage) return 'mine';
+    if (!theirLastMessage) return 'theirs';
+    // Si las fechas son distintas, la más reciente manda
+    if (theirLastMessage > myLastMessage) return 'mine';
+    if (myLastMessage > theirLastMessage) return 'theirs';
+    // Fechas iguales: usar el turno guardado explícitamente
+    if (lastTurn) return lastTurn;
+    // Sin lastTurn y fechas iguales: ambiguo, pedir aclaración
+    return 'unknown';
   },
 
   /**

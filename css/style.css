@@ -393,7 +393,25 @@ body::before {
 .urgency-overdue { border-left-color: var(--overdue) !important; background: #e0555510 !important; }
 
 .tr-left    { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+
+/* Fila con estrella + nombre del partner */
+.tr-name-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
 .tr-partner { font-weight: 600; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Estrella de favorito */
+.fav-star {
+  font-size: 1rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.fav-star--on  { color: var(--accent); }
+.fav-star--off { color: var(--border); }
+
 .tr-meta    { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .tr-actions { display: flex; gap: 2px; flex-shrink: 0; }
 
@@ -426,9 +444,39 @@ body::before {
   border: 1px solid var(--border);
 }
 
+/* Días que lleva el partner sin contestar (turno de ellos) */
+.days-waiting {
+  color: var(--theirs);
+  border-color: var(--theirs);
+  background: var(--theirs-bg);
+}
+
 .max-days {
   font-size: 0.72rem;
   color: var(--text-dim);
+}
+
+/* Checkbox en modales (favorito) */
+.label-checkbox {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 10px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  font-size: 0.95rem !important;
+  color: var(--text) !important;
+}
+.label-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  flex-shrink: 0;
 }
 
 /* ── DASHBOARD ────────────────────────────────────────────── */

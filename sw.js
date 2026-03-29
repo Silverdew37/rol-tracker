@@ -4,7 +4,10 @@
    Cachea todos los archivos estáticos en la primera carga.
    ============================================================ */
 
-const CACHE_NAME = 'rol-tracker-v1';
+// ⚠️ IMPORTANTE: cambia este número cada vez que subas cambios a GitHub.
+// El navegador detectará la versión nueva y descargará los archivos actualizados
+// automáticamente, sin borrar los datos de la app (localStorage no se toca).
+const CACHE_NAME = 'rol-tracker-v2';
 
 // Archivos que se cachean para uso offline
 const ASSETS = [

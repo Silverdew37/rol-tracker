@@ -223,6 +223,51 @@ body::before {
   border-color: var(--mine);
 }
 
+/* ── DRAG & DROP — reordenar personajes ───────────────────── */
+
+/* Texto de ayuda junto al título */
+.drag-hint {
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-style: italic;
+  font-weight: 400;
+  color: var(--text-dim);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Handle de arrastre (los seis puntos ⠿) */
+.drag-handle {
+  font-size: 1.2rem;
+  color: var(--border);
+  cursor: grab;
+  padding: 0 6px 0 0;
+  flex-shrink: 0;
+  user-select: none;
+  touch-action: none; /* necesario para que touchstart funcione con passive:false */
+  line-height: 1;
+}
+.drag-handle:active { cursor: grabbing; }
+
+/* Elemento mientras se arrastra: flota sobre los demás */
+.char-item.dragging {
+  position: fixed;
+  z-index: 200;
+  left: 0;
+  opacity: 0.92;
+  box-shadow: 0 8px 32px #0008;
+  border-color: var(--accent);
+  pointer-events: none;
+}
+
+/* Hueco visual mientras se arrastra */
+.drag-placeholder {
+  background: var(--accent-glow);
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius);
+  list-style: none;
+}
+
 /* ── LISTA DE PERSONAJES ──────────────────────────────────── */
 .char-list {
   list-style: none;

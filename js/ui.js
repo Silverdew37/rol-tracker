@@ -443,7 +443,7 @@ const UI = {
   _threadRow(thread, turn) {
     const daysOwed = turn === 'mine' ? (thread._days ?? 0) : null;
 
-    // Días que lleva el partner sin contestarme (cuando me deben)
+    // Días que lleva el partner sin contestarme (cuando me deben a mí)
     const theirPendingDays = turn === 'theirs'
       ? DB.daysBetween(thread.myLastMessage)
       : null;
@@ -455,34 +455,55 @@ const UI = {
       else if (thread.maxDays - daysOwed <= 1) urgencyClass = 'urgency-warning';
     }
 
-    // ── Etiquetas según turno ──────────────────────────────
+    /* ── Etiquetas de días ────────────────────────────────────
+     * Diseño: cada dato tiene icono + número + texto corto
+     * en una pastilla de color distinto según qué mide.
+     *
+     * SI DEBO YO:
+     *   🔴 Yo: Xd sin contestar        (mis días de deuda)
+     *   ⬜ Ell@: Xd en responder        (cuánto tardó el partner)
+     *   ⚙  límite Xd                   (notificación)
+     *
+     * SI ME DEBEN:
+     *   🔵 Ell@: Xd sin contestar       (cuánto llevan sin responder)
+     *   ⬜ Yo: Xd en responder          (cuánto tardé yo)
+     *   ⚙  límite Xd                   (notificación)
+     * ───────────────────────────────────────────────────────── */
     let metaHTML = '';
 
     if (turn === 'mine') {
-      // Días que llevo sin contestar (desde su último mensaje)
-      metaHTML += `<span class="days-badge ${urgencyClass}">${daysOwed}d sin contestar</span>`;
-      // Días que tardó el partner la última vez en responderme
+      // Mis días sin contestar — pastilla roja/naranja según urgencia
+      metaHTML += `<span class="pill pill-me ${urgencyClass}" title="Días que llevo sin contestar">
+        yo · ${daysOwed}d
+      </span>`;
+      // Días que tardó el partner la última vez — pastilla neutra
       if (thread.theirResponseDays !== null && thread.theirResponseDays !== undefined) {
-        metaHTML += `<span class="days-response" title="Tardó ${thread.theirResponseDays}d en responderme">↩ ${thread.theirResponseDays}d</span>`;
+        metaHTML += `<span class="pill pill-them" title="Días que tardó ${thread.partnerName} en responderme la última vez">
+          ell@ · ${thread.theirResponseDays}d
+        </span>`;
       }
       // Límite de notificación
-      metaHTML += `<span class="max-days" title="Límite: ${thread.maxDays} días">⏱ ${thread.maxDays}d</span>`;
+      metaHTML += `<span class="pill pill-limit" title="Límite que te has puesto">⏱ ${thread.maxDays}d</span>`;
 
     } else if (turn === 'theirs') {
-      // Días que lleva el partner sin contestarme
+      // Días que lleva el partner sin contestar — pastilla azul
       if (theirPendingDays !== null) {
-        metaHTML += `<span class="days-response days-waiting">${theirPendingDays}d esperando</span>`;
+        metaHTML += `<span class="pill pill-them-wait" title="Días que lleva ${thread.partnerName} sin contestarte">
+          ell@ · ${theirPendingDays}d
+        </span>`;
       }
-      // Días que tardé yo la última vez en responder
+      // Días que tardé yo la última vez — pastilla neutra
       if (thread.myResponseDays !== null && thread.myResponseDays !== undefined) {
-        metaHTML += `<span class="days-response" title="Tardé ${thread.myResponseDays}d en responder">✍ ${thread.myResponseDays}d</span>`;
+        metaHTML += `<span class="pill pill-me-prev" title="Días que tardaste tú en responder la última vez">
+          yo · ${thread.myResponseDays}d
+        </span>`;
       }
       // Límite de notificación
-      metaHTML += `<span class="max-days" title="Límite: ${thread.maxDays} días">⏱ ${thread.maxDays}d</span>`;
+      metaHTML += `<span class="pill pill-limit" title="Límite que te has puesto">⏱ ${thread.maxDays}d</span>`;
 
     } else {
-      // Sin turno definido: solo el límite
-      metaHTML += `<span class="max-days" title="Límite: ${thread.maxDays} días">⏱ ${thread.maxDays}d</span>`;
+      // Sin turno definido aún
+      metaHTML += `<span class="pill pill-limit" title="Límite que te has puesto">⏱ ${thread.maxDays}d</span>`;
     }
 
     // Estrella de favorito

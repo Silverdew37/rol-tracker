@@ -415,46 +415,80 @@ body::before {
 .tr-meta    { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .tr-actions { display: flex; gap: 2px; flex-shrink: 0; }
 
-/* Etiquetas pequeñas de días */
-.days-badge {
-  font-size: 0.75rem;
-  padding: 2px 7px;
+/* ── PASTILLAS DE DÍAS (hilo) ─────────────────────────────── */
+/*
+ * Sistema de pastillas para mostrar días de un vistazo.
+ * Cada pastilla tiene color propio según qué mide:
+ *   pill-me       → mis días sin contestar (rojo/naranja según urgencia)
+ *   pill-them     → días que tardó el partner en responderme (gris neutro)
+ *   pill-them-wait→ días que lleva el partner sin contestar (azul)
+ *   pill-me-prev  → días que tardé yo en responder (gris neutro)
+ *   pill-limit    → límite de notificación configurado (borde sutil)
+ */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
   border-radius: 10px;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+/* Mis días sin contestar — rojo por defecto */
+.pill-me {
   background: var(--mine-bg);
   color: var(--mine);
-  border: 1px solid var(--mine);
-  font-weight: 600;
+  border-color: var(--mine);
 }
-.days-badge.urgency-warning {
+/* Urgencia: queda 1 día */
+.pill-me.urgency-warning {
   background: #d4a84318;
   color: var(--warning);
   border-color: var(--warning);
 }
-.days-badge.urgency-overdue {
+/* Urgencia: límite superado */
+.pill-me.urgency-overdue {
   background: #e0555520;
   color: var(--overdue);
   border-color: var(--overdue);
 }
 
-.days-response {
-  font-size: 0.75rem;
+/* Días que tardó el partner en responderme (referencia, color neutro) */
+.pill-them {
+  background: transparent;
   color: var(--text-dim);
-  padding: 2px 6px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
+  border-color: var(--border);
 }
 
-/* Días que lleva el partner sin contestar (turno de ellos) */
-.days-waiting {
+/* Días que lleva el partner sin contestarme — azul */
+.pill-them-wait {
+  background: var(--theirs-bg);
   color: var(--theirs);
   border-color: var(--theirs);
-  background: var(--theirs-bg);
 }
 
-.max-days {
-  font-size: 0.72rem;
+/* Días que tardé yo la última vez (referencia, color neutro) */
+.pill-me-prev {
+  background: transparent;
   color: var(--text-dim);
+  border-color: var(--border);
 }
+
+/* Límite configurado — muy sutil */
+.pill-limit {
+  background: transparent;
+  color: var(--text-dim);
+  border-color: transparent;
+  font-weight: 400;
+  font-size: 0.7rem;
+}
+
+/* Mantener compatibilidad con clases antiguas por si hubiera datos cacheados */
+.days-badge { display: none; }
+.days-response { display: none; }
+.max-days { display: none; }
 
 /* Checkbox en modales (favorito) */
 .label-checkbox {

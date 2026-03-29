@@ -561,6 +561,49 @@ body::before {
   margin-top: 4px;
 }
 
+/* Selector de turno en el modal de fechas */
+.turn-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.turn-label {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.turn-options {
+  display: flex;
+  gap: 10px;
+}
+
+.turn-option {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  font-size: 0.95rem;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text);
+}
+
+.turn-option input[type="radio"] { accent-color: var(--accent); }
+
+.turn-option:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-glow);
+}
+
 .modal-confirm-msg {
   color: var(--text);
   font-size: 0.95rem;

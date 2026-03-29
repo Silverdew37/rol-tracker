@@ -126,22 +126,25 @@ const DB = {
 
   /**
    * Añade un hilo nuevo.
-   * @param {string} characterId
-   * @param {string} partnerName
-   * @param {number} maxDays
+   * @param {string}  characterId
+   * @param {string}  partnerName
+   * @param {number}  maxDays
+   * @param {boolean} favorite    — marcar como favorito
    * @returns {object} hilo creado
    */
-  addThread(characterId, partnerName, maxDays) {
+  addThread(characterId, partnerName, maxDays, favorite = false) {
     const threads = this.getThreads();
     const newThread = {
-      id:                this._uid(),
+      id:               this._uid(),
       characterId,
-      partnerName:       partnerName.trim(),
-      myLastMessage:     null,   // aún no hemos enviado nada
-      theirLastMessage:  null,   // aún no nos han enviado nada
-      theirResponseDays: null,   // días que tardaron en responder (calculado)
-      maxDays:           parseInt(maxDays) || 3,
-      active:            true
+      partnerName:      partnerName.trim(),
+      myLastMessage:    null,   // fecha ISO de mi último mensaje
+      theirLastMessage: null,   // fecha ISO de su último mensaje
+      theirResponseDays: null,  // días que tardó el partner en responderme (calculado)
+      myResponseDays:   null,   // días que tardé yo en responder al partner (calculado)
+      maxDays:          parseInt(maxDays) || 3,
+      favorite:         !!favorite,
+      active:           true
     };
     threads.push(newThread);
     this._save(this.KEYS.THREADS, threads);
@@ -150,46 +153,52 @@ const DB = {
 
   /**
    * Actualiza las fechas de un hilo.
-   * Recibe también lastTurn ('mine'|'theirs') para saber explícitamente
-   * quién escribió el último mensaje (necesario cuando las fechas coinciden).
-   * Calcula automáticamente theirResponseDays cuando se registra
-   * un nuevo mensaje del partner (theirLastMessage).
+   * Recibe lastTurn ('mine'|'theirs') explícito para cuando las fechas coinciden.
+   * Calcula automáticamente:
+   *   - theirResponseDays: días que tardó el partner en responder a mi último mensaje
+   *   - myResponseDays:    días que tardé yo en responder al último mensaje del partner
    */
   updateThreadDates(id, myLastMessage, theirLastMessage, lastTurn) {
     const threads = this.getThreads().map(t => {
       if (t.id !== id) return t;
 
-      let theirResponseDays = t.theirResponseDays;
+      let { theirResponseDays, myResponseDays } = t;
 
-      // Si hay nuevo mensaje del partner y tenemos fecha de nuestro último mensaje,
-      // calculamos cuántos días tardaron en responder.
-      if (
-        theirLastMessage &&
-        t.myLastMessage &&
-        theirLastMessage !== t.theirLastMessage // realmente es nuevo
-      ) {
-        const prev = new Date(t.myLastMessage);
-        const resp = new Date(theirLastMessage);
-        const diff = Math.round((resp - prev) / (1000 * 60 * 60 * 24));
+      // Nuevo mensaje del partner → calculamos cuánto tardó en responderme
+      // (desde mi último mensaje previo hasta el suyo nuevo)
+      if (theirLastMessage && t.myLastMessage && theirLastMessage !== t.theirLastMessage) {
+        const diff = Math.round(
+          (new Date(theirLastMessage) - new Date(t.myLastMessage)) / 86400000
+        );
         if (diff >= 0) theirResponseDays = diff;
+      }
+
+      // Nuevo mensaje mío → calculamos cuánto tardé en responder al partner
+      // (desde el último mensaje del partner hasta mi nuevo mensaje)
+      if (myLastMessage && t.theirLastMessage && myLastMessage !== t.myLastMessage) {
+        const diff = Math.round(
+          (new Date(myLastMessage) - new Date(t.theirLastMessage)) / 86400000
+        );
+        if (diff >= 0) myResponseDays = diff;
       }
 
       return {
         ...t,
-        myLastMessage:    myLastMessage    || t.myLastMessage,
-        theirLastMessage: theirLastMessage || t.theirLastMessage,
+        myLastMessage:     myLastMessage    || t.myLastMessage,
+        theirLastMessage:  theirLastMessage || t.theirLastMessage,
         theirResponseDays,
-        lastTurn:         lastTurn         || t.lastTurn || null
+        myResponseDays,
+        lastTurn:          lastTurn !== undefined ? lastTurn : t.lastTurn
       };
     });
     this._save(this.KEYS.THREADS, threads);
   },
 
-  /** Edita configuración de un hilo (nombre partner, maxDays). */
-  editThread(id, partnerName, maxDays) {
+  /** Edita configuración de un hilo (nombre partner, maxDays, favorite). */
+  editThread(id, partnerName, maxDays, favorite) {
     const threads = this.getThreads().map(t =>
       t.id === id
-        ? { ...t, partnerName: partnerName.trim(), maxDays: parseInt(maxDays) || 3 }
+        ? { ...t, partnerName: partnerName.trim(), maxDays: parseInt(maxDays) || 3, favorite: !!favorite }
         : t
     );
     this._save(this.KEYS.THREADS, threads);

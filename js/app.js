@@ -20,6 +20,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   /* ── 3. COMPROBAR ALARMAS AL ABRIR ──────────────────────── */
   Notifs.checkAll();
 
+  // Programar comprobación automática a las 7:30am cada día
+  Notifs.scheduleMorningCheck();
+
   // También comprobar cuando la app vuelve al primer plano
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') Notifs.checkAll();

@@ -59,14 +59,14 @@ const UI = {
 
   /* ══════════════════════════════════════════════════════
      VISTA 1: DASHBOARD
-     Muestra los hilos urgentes (≥3 días sin contestar)
+     Muestra los hilos urgentes (≥4 días sin contestar)
      de todos los personajes, ordenados de más a menos urgente.
   ══════════════════════════════════════════════════════ */
 
   _renderDashboard() {
     const main = document.getElementById('main-content');
 
-    // Recoger todos los hilos donde le debo y llevo ≥3 días
+    // Recoger todos los hilos donde le debo y llevo ≥4 días
     let threads = DB.getThreads().filter(t => t.active);
     const chars = DB.getCharacters();
 
@@ -77,9 +77,9 @@ const UI = {
 
     threads = threads.filter(t => filteredCharIds.includes(t.characterId));
 
-    // Solo los que le debo yo y llevan ≥3 días
+    // Solo los que le debo yo y llevan ≥4 días
     const urgent = threads
-      .filter(t => DB.getTurn(t) === 'mine' && DB.daysOwed(t) >= 3)
+      .filter(t => DB.getTurn(t) === 'mine' && DB.daysOwed(t) >= 4)
       .map(t => ({ ...t, _daysOwed: DB.daysOwed(t) }))
       .sort((a, b) => b._daysOwed - a._daysOwed); // más días = más arriba
 
@@ -90,7 +90,7 @@ const UI = {
           <span class="badge ${urgent.length > 0 ? 'badge-alert' : ''}">${urgent.length}</span>
         </h2>
         ${urgent.length === 0
-          ? `<p class="empty-state">✨ Todo al día. No hay hilos con 3+ días de espera.</p>`
+          ? `<p class="empty-state">✨ Todo al día. No hay hilos con 4+ días de espera.</p>`
           : `<ul class="thread-list">
               ${urgent.map(t => this._threadCardDashboard(t, chars)).join('')}
              </ul>`
@@ -441,40 +441,63 @@ const UI = {
 
   /** Fila de hilo en el detalle de personaje */
   _threadRow(thread, turn) {
-    const daysOwed   = turn === 'mine' ? thread._days : null;
-    const theirDays  = thread.theirResponseDays; // cuánto tardaron en responder
+    const daysOwed = turn === 'mine' ? (thread._days ?? 0) : null;
 
-    // Estado de urgencia para colorear
+    // Días que lleva el partner sin contestarme (cuando me deben)
+    const theirPendingDays = turn === 'theirs'
+      ? DB.daysBetween(thread.myLastMessage)
+      : null;
+
+    // Estado de urgencia (solo cuando debo yo)
     let urgencyClass = '';
     if (turn === 'mine') {
-      if (daysOwed >= thread.maxDays)           urgencyClass = 'urgency-overdue';
-      else if (thread.maxDays - daysOwed <= 1)  urgencyClass = 'urgency-warning';
+      if (daysOwed >= thread.maxDays)          urgencyClass = 'urgency-overdue';
+      else if (thread.maxDays - daysOwed <= 1) urgencyClass = 'urgency-warning';
     }
 
-    // Días desde su último mensaje (para "le debo yo")
-    const daysOwedLabel = turn === 'mine'
-      ? `<span class="days-badge ${urgencyClass}">${daysOwed}d sin contestar</span>`
-      : '';
+    // ── Etiquetas según turno ──────────────────────────────
+    let metaHTML = '';
 
-    // Días que tardó en responder (siempre visible si existe)
-    const theirResponseLabel = theirDays !== null && theirDays !== undefined
-      ? `<span class="days-response" title="Tardó ${theirDays} días en responderme">↩ ${theirDays}d</span>`
-      : '';
+    if (turn === 'mine') {
+      // Días que llevo sin contestar (desde su último mensaje)
+      metaHTML += `<span class="days-badge ${urgencyClass}">${daysOwed}d sin contestar</span>`;
+      // Días que tardó el partner la última vez en responderme
+      if (thread.theirResponseDays !== null && thread.theirResponseDays !== undefined) {
+        metaHTML += `<span class="days-response" title="Tardó ${thread.theirResponseDays}d en responderme">↩ ${thread.theirResponseDays}d</span>`;
+      }
+      // Límite de notificación
+      metaHTML += `<span class="max-days" title="Límite: ${thread.maxDays} días">⏱ ${thread.maxDays}d</span>`;
 
-    // Límite máximo (solo cuando es mi turno)
-    const maxLabel = turn === 'mine'
-      ? `<span class="max-days" title="Límite: ${thread.maxDays} días">⏱ ${thread.maxDays}d</span>`
-      : '';
+    } else if (turn === 'theirs') {
+      // Días que lleva el partner sin contestarme
+      if (theirPendingDays !== null) {
+        metaHTML += `<span class="days-response days-waiting">${theirPendingDays}d esperando</span>`;
+      }
+      // Días que tardé yo la última vez en responder
+      if (thread.myResponseDays !== null && thread.myResponseDays !== undefined) {
+        metaHTML += `<span class="days-response" title="Tardé ${thread.myResponseDays}d en responder">✍ ${thread.myResponseDays}d</span>`;
+      }
+      // Límite de notificación
+      metaHTML += `<span class="max-days" title="Límite: ${thread.maxDays} días">⏱ ${thread.maxDays}d</span>`;
+
+    } else {
+      // Sin turno definido: solo el límite
+      metaHTML += `<span class="max-days" title="Límite: ${thread.maxDays} días">⏱ ${thread.maxDays}d</span>`;
+    }
+
+    // Estrella de favorito
+    const star = thread.favorite
+      ? `<span class="fav-star fav-star--on" title="Favorito">★</span>`
+      : `<span class="fav-star fav-star--off" title="No favorito">☆</span>`;
 
     return `
       <li class="thread-row ${turn === 'theirs' ? 'thread-row--dim' : ''} ${urgencyClass}">
         <div class="tr-left">
-          <span class="tr-partner">${thread.partnerName}</span>
-          <div class="tr-meta">
-            ${daysOwedLabel}
-            ${theirResponseLabel}
-            ${maxLabel}
+          <div class="tr-name-row">
+            ${star}
+            <span class="tr-partner">${thread.partnerName}</span>
           </div>
+          <div class="tr-meta">${metaHTML}</div>
         </div>
         <div class="tr-actions">
           <button class="btn-icon btn-thread-dates" data-id="${thread.id}" title="Actualizar fechas">📅</button>
@@ -566,12 +589,17 @@ const UI = {
       `<label>Nombre del partner<input id="m-th-partner" type="text" placeholder="Ej: Mireia (Rosamund)" /></label>
        <label>Días máximos para contestar
          <input id="m-th-maxdays" type="number" min="1" max="30" value="3" />
+       </label>
+       <label class="label-checkbox">
+         <input id="m-th-fav" type="checkbox" />
+         <span>⭐ Marcar como favorito</span>
        </label>`,
       overlay => {
         const partner = document.getElementById('m-th-partner').value.trim();
         const maxDays = document.getElementById('m-th-maxdays').value;
+        const fav     = document.getElementById('m-th-fav').checked;
         if (!partner) { alert('El nombre del partner es obligatorio.'); return; }
-        DB.addThread(charId, partner, maxDays);
+        DB.addThread(charId, partner, maxDays, fav);
         overlay.remove();
         this.render();
       }
@@ -588,12 +616,17 @@ const UI = {
       `<label>Nombre del partner<input id="m-th-partner" type="text" value="${thread.partnerName}" /></label>
        <label>Días máximos para contestar
          <input id="m-th-maxdays" type="number" min="1" max="30" value="${thread.maxDays}" />
+       </label>
+       <label class="label-checkbox">
+         <input id="m-th-fav" type="checkbox" ${thread.favorite ? 'checked' : ''} />
+         <span>⭐ Marcar como favorito</span>
        </label>`,
       overlay => {
         const partner = document.getElementById('m-th-partner').value.trim();
         const maxDays = document.getElementById('m-th-maxdays').value;
+        const fav     = document.getElementById('m-th-fav').checked;
         if (!partner) { alert('El nombre del partner es obligatorio.'); return; }
-        DB.editThread(threadId, partner, maxDays);
+        DB.editThread(threadId, partner, maxDays, fav);
         overlay.remove();
         this.render();
       }
@@ -602,23 +635,48 @@ const UI = {
 
   /**
    * Modal: actualizar fechas de un hilo.
-   * Incluye selector explícito de quién escribió último,
-   * imprescindible cuando ambas fechas coinciden.
+   * El selector de turno solo aparece si las dos fechas son el mismo día.
+   * Cuando las fechas son distintas, el turno se calcula automáticamente.
    */
   _showDatesModal(threadId) {
     const thread = DB.getThreads().find(t => t.id === threadId);
     if (!thread) return;
     const today = DB.today();
 
-    // Turno actual guardado (para preseleccionar el radio)
-    const savedTurn = thread.lastTurn || DB.getTurn(thread);
+    // Turno guardado explícitamente (para preseleccionar si coinciden fechas)
+    const savedTurn = thread.lastTurn || null;
+
+    // Detectamos si las fechas actuales ya coinciden (para mostrar el selector de entrada)
+    const datesMatch = thread.myLastMessage &&
+                       thread.theirLastMessage &&
+                       thread.myLastMessage === thread.theirLastMessage;
+
+    // El selector se muestra si las fechas ya coinciden al abrir;
+    // también se muestra dinámicamente al cambiar las fechas (ver JS abajo)
+    const turnSelectorHTML = `
+      <div class="turn-selector" id="turn-selector" style="display:${datesMatch ? 'flex' : 'none'}">
+        <span class="turn-label">¿Quién escribió último?</span>
+        <div class="turn-options">
+          <label class="turn-option">
+            <input type="radio" name="last-turn" value="theirs"
+              ${savedTurn === 'theirs' || (!savedTurn && datesMatch) ? 'checked' : ''} />
+            <span>${thread.partnerName}</span>
+          </label>
+          <label class="turn-option">
+            <input type="radio" name="last-turn" value="mine"
+              ${savedTurn === 'mine' ? 'checked' : ''} />
+            <span>Yo</span>
+          </label>
+        </div>
+      </div>
+    `;
 
     this._showModal(
       `Fechas — ${thread.partnerName}`,
       `
       <label>Mi último mensaje
         <div class="date-row">
-          <input id="m-my-date"    type="date" value="${thread.myLastMessage || ''}" max="${today}" />
+          <input id="m-my-date" type="date" value="${thread.myLastMessage || ''}" max="${today}" />
           <button class="btn-ghost btn-today" data-target="m-my-date">Hoy</button>
         </div>
       </label>
@@ -628,43 +686,45 @@ const UI = {
           <button class="btn-ghost btn-today" data-target="m-their-date">Hoy</button>
         </div>
       </label>
-
-      <!-- Selector de turno: quién escribió el último mensaje -->
-      <div class="turn-selector">
-        <span class="turn-label">¿Quién escribió último?</span>
-        <div class="turn-options">
-          <label class="turn-option">
-            <input type="radio" name="last-turn" value="theirs"
-              ${savedTurn === 'mine' || savedTurn === 'unknown' ? 'checked' : ''} />
-            <span>${thread.partnerName}</span>
-          </label>
-          <label class="turn-option">
-            <input type="radio" name="last-turn" value="mine"
-              ${savedTurn === 'theirs' ? 'checked' : ''} />
-            <span>Yo</span>
-          </label>
-        </div>
-      </div>
-
+      ${turnSelectorHTML}
       <p class="modal-hint">
-        💡 El selector de turno es necesario cuando ambas fechas son el mismo día.
+        💡 Si ambas fechas son el mismo día, indica quién escribió último.
       </p>
       `,
       overlay => {
-        const myDate    = document.getElementById('m-my-date').value    || null;
+        const myDate   = document.getElementById('m-my-date').value    || null;
         const theirDate = document.getElementById('m-their-date').value || null;
-        const lastTurn  = document.querySelector('input[name="last-turn"]:checked')?.value || null;
+        // Si las fechas coinciden, recogemos el turno elegido; si no, lo dejamos null
+        // para que getTurn lo calcule automáticamente por fechas
+        const coinciden = myDate && theirDate && myDate === theirDate;
+        const lastTurn  = coinciden
+          ? (document.querySelector('input[name="last-turn"]:checked')?.value || null)
+          : null;
         DB.updateThreadDates(threadId, myDate, theirDate, lastTurn);
         overlay.remove();
         this.render();
       }
     );
 
-    // Botones "Hoy"
+    // Botones "Hoy" y lógica para mostrar/ocultar el selector de turno
     setTimeout(() => {
+      const myInput    = document.getElementById('m-my-date');
+      const theirInput = document.getElementById('m-their-date');
+      const selector   = document.getElementById('turn-selector');
+
+      // Mostrar u ocultar el selector según si las fechas coinciden
+      const toggleSelector = () => {
+        const match = myInput.value && theirInput.value && myInput.value === theirInput.value;
+        selector.style.display = match ? 'flex' : 'none';
+      };
+
+      myInput.addEventListener('change', toggleSelector);
+      theirInput.addEventListener('change', toggleSelector);
+
       document.querySelectorAll('.btn-today').forEach(btn => {
         btn.addEventListener('click', () => {
           document.getElementById(btn.dataset.target).value = today;
+          toggleSelector();
         });
       });
     }, 50);

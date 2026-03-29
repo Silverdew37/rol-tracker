@@ -76,6 +76,15 @@ const DB = {
     this._save(this.KEYS.THREADS, threads);
   },
 
+  /**
+   * Guarda el array de personajes en el nuevo orden.
+   * Se llama tras un drag & drop con el array ya reordenado.
+   * @param {array} orderedChars — array completo de personajes en el orden deseado
+   */
+  reorderCharacters(orderedChars) {
+    this._save(this.KEYS.CHARACTERS, orderedChars);
+  },
+
   /** Devuelve todos los juegos únicos (para el filtro). */
   getGames() {
     const chars = this.getCharacters();

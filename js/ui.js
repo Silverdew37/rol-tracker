@@ -138,20 +138,22 @@ const UI = {
   ══════════════════════════════════════════════════════ */
 
   _renderCharacters() {
-    const main  = document.getElementById('main-content');
-    let   chars = DB.getCharacters();
-
-    // Aplicar filtro de juego
-    if (this.currentGameFilter !== 'all') {
-      chars = chars.filter(c => c.game === this.currentGameFilter);
-    }
+    const main = document.getElementById('main-content');
+    // Todos los personajes en su orden guardado
+    const allChars = DB.getCharacters();
+    // Para mostrar, filtramos por juego si hace falta
+    const chars = this.currentGameFilter === 'all'
+      ? allChars
+      : allChars.filter(c => c.game === this.currentGameFilter);
 
     main.innerHTML = `
       <section class="characters-view">
-        <h2 class="view-title">Mis personajes</h2>
+        <h2 class="view-title">Mis personajes
+          <span class="drag-hint">mantén para ordenar</span>
+        </h2>
         ${chars.length === 0
           ? `<p class="empty-state">Aún no tienes personajes. Pulsa <strong>+ Personaje</strong> para empezar.</p>`
-          : `<ul class="char-list">
+          : `<ul class="char-list" id="char-list-sortable">
               ${chars.map(c => this._charCard(c)).join('')}
              </ul>`
         }
@@ -161,7 +163,6 @@ const UI = {
     // Clic en personaje → vista detalle
     main.querySelectorAll('.char-item').forEach(el => {
       el.addEventListener('click', e => {
-        // Evitar que el clic en los botones de editar/borrar abra el detalle
         if (e.target.closest('.char-actions')) return;
         this.currentCharId = el.dataset.id;
         this.currentView   = 'character';
@@ -169,7 +170,7 @@ const UI = {
       });
     });
 
-    // Botones editar personaje
+    // Botones editar
     main.querySelectorAll('.btn-edit-char').forEach(btn => {
       btn.addEventListener('click', e => {
         e.stopPropagation();
@@ -177,7 +178,7 @@ const UI = {
       });
     });
 
-    // Botones borrar personaje
+    // Botones borrar
     main.querySelectorAll('.btn-del-char').forEach(btn => {
       btn.addEventListener('click', e => {
         e.stopPropagation();
@@ -187,6 +188,148 @@ const UI = {
         );
       });
     });
+
+    // Inicializar drag & drop si hay lista
+    const list = document.getElementById('char-list-sortable');
+    if (list) this._initDragSort(list, allChars);
+  },
+
+  /**
+   * Drag & drop táctil y de ratón para reordenar la lista de personajes.
+   * Funciona con touch (móvil) y mouse (escritorio).
+   * Al soltar, guarda el nuevo orden en localStorage.
+   *
+   * @param {HTMLElement} list      — el <ul> a ordenar
+   * @param {array}       allChars  — array completo sin filtrar (para preservar
+   *                                  personajes de otros juegos en el orden global)
+   */
+  _initDragSort(list, allChars) {
+    let dragging   = null;  // elemento que se está arrastrando
+    let placeholder = null; // elemento fantasma que ocupa el hueco
+    let startY     = 0;
+    let offsetY    = 0;     // distancia del dedo al borde superior del elemento
+
+    // ── Crear placeholder (hueco visual) ──────────────────
+    const makePlaceholder = (height) => {
+      const ph = document.createElement('li');
+      ph.className = 'drag-placeholder';
+      ph.style.height = height + 'px';
+      return ph;
+    };
+
+    // ── Obtener el elemento <li> más cercano al punto Y ───
+    const getItemAtY = (y) => {
+      const items = [...list.querySelectorAll('.char-item:not(.dragging)')];
+      for (const item of items) {
+        const rect = item.getBoundingClientRect();
+        if (y < rect.top + rect.height / 2) return item;
+      }
+      return null; // insertar al final
+    };
+
+    // ── Guardar nuevo orden ────────────────────────────────
+    const saveOrder = () => {
+      // IDs en el orden actual del DOM (sin el placeholder)
+      const newOrder = [...list.querySelectorAll('.char-item')]
+        .map(el => el.dataset.id);
+
+      // Reconstruir allChars en ese orden, preservando personajes
+      // que puedan estar filtrados (no visibles pero existentes)
+      const visible   = new Set(newOrder);
+      const invisible = allChars.filter(c => !visible.has(c.id));
+      const ordered   = [
+        ...newOrder.map(id => allChars.find(c => c.id === id)),
+        ...invisible
+      ].filter(Boolean);
+
+      DB.reorderCharacters(ordered);
+    };
+
+    // ══════════════════════════════════════════════════════
+    // TOUCH (móvil)
+    // ══════════════════════════════════════════════════════
+    list.addEventListener('touchstart', e => {
+      const handle = e.target.closest('.drag-handle');
+      if (!handle) return;
+      e.preventDefault(); // evita scroll mientras arrastra
+
+      dragging = handle.closest('.char-item');
+      const rect = dragging.getBoundingClientRect();
+      startY  = e.touches[0].clientY;
+      offsetY = startY - rect.top;
+
+      placeholder = makePlaceholder(rect.height);
+      dragging.classList.add('dragging');
+      // Posición fija sobre la lista
+      dragging.style.top   = rect.top + 'px';
+      dragging.style.width = rect.width + 'px';
+      list.insertBefore(placeholder, dragging.nextSibling);
+    }, { passive: false });
+
+    list.addEventListener('touchmove', e => {
+      if (!dragging) return;
+      e.preventDefault();
+      const y = e.touches[0].clientY;
+      dragging.style.top = (y - offsetY) + 'px';
+
+      // Mover placeholder al hueco correcto
+      const target = getItemAtY(y);
+      if (target && target !== placeholder) {
+        list.insertBefore(placeholder, target);
+      } else if (!target) {
+        list.appendChild(placeholder);
+      }
+    }, { passive: false });
+
+    list.addEventListener('touchend', () => {
+      if (!dragging) return;
+      dragging.classList.remove('dragging');
+      dragging.style.top   = '';
+      dragging.style.width = '';
+      placeholder.replaceWith(dragging);
+      placeholder = null;
+      saveOrder();
+      dragging = null;
+    });
+
+    // ══════════════════════════════════════════════════════
+    // MOUSE (escritorio)
+    // ══════════════════════════════════════════════════════
+    list.addEventListener('mousedown', e => {
+      const handle = e.target.closest('.drag-handle');
+      if (!handle) return;
+      e.preventDefault();
+
+      dragging = handle.closest('.char-item');
+      const rect = dragging.getBoundingClientRect();
+      offsetY = e.clientY - rect.top;
+
+      placeholder = makePlaceholder(rect.height);
+      dragging.classList.add('dragging');
+      dragging.style.top   = rect.top + 'px';
+      dragging.style.width = rect.width + 'px';
+      list.insertBefore(placeholder, dragging.nextSibling);
+
+      const onMove = ev => {
+        dragging.style.top = (ev.clientY - offsetY) + 'px';
+        const target = getItemAtY(ev.clientY);
+        if (target && target !== placeholder) list.insertBefore(placeholder, target);
+        else if (!target) list.appendChild(placeholder);
+      };
+      const onUp = () => {
+        dragging.classList.remove('dragging');
+        dragging.style.top   = '';
+        dragging.style.width = '';
+        placeholder.replaceWith(dragging);
+        placeholder = null;
+        saveOrder();
+        dragging = null;
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup',   onUp);
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup',   onUp);
+    });
   },
 
   /** Tarjeta de personaje en la lista */
@@ -195,6 +338,7 @@ const UI = {
     const pending  = threads.filter(t => t.active && DB.getTurn(t) === 'mine').length;
     return `
       <li class="char-item" data-id="${char.id}">
+        <span class="drag-handle" title="Mantén pulsado para ordenar">⠿</span>
         <div class="char-info">
           <span class="char-name">${char.name}</span>
           <span class="char-game">${char.game || '—'}</span>
